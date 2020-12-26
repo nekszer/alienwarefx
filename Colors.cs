@@ -99,13 +99,14 @@ namespace AlienColors
         /// <returns>HEX Color</returns>
         public static RGB RandomColor()
         {
-            var color = Colors.OrderBy(i => rand.Next()).ElementAt(0);
-            var random = RandomColor(color.Value);
+            var color = Colors.OrderBy(i => rand.Next()).FirstOrDefault();
+            var values = color.Value.Where(c => c.Key.Contains("darken") || c.Key.Contains("neutral"));
+            var random = RandomColor(values);
             var rgb = ColorConverter.HexToRgb(new HEX(random.Value));
             return rgb;
         }
 
-        private static KeyValuePair<string, string> RandomColor(Dictionary<string, string> colors)
+        private static KeyValuePair<string, string> RandomColor(IEnumerable<KeyValuePair<string, string>> colors)
         {
             var randomlyOrdered = colors.OrderBy(i => rand.Next());
             var randomitemm = randomlyOrdered.First();

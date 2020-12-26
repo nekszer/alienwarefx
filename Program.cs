@@ -6,13 +6,68 @@ using ColorHelper;
 using Pastel;
 using System.Drawing;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using System.Diagnostics;
 
 namespace AlienColors
 {
 	class Program
 	{
-		static void Main(string[] args)
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr GetShellWindow();
+
+        [DllImport("user32.dll")]
+        static extern IntPtr GetDesktopWindow();
+
+        static void Main(string[] args)
 		{
+            TraySystem();
+            Console.ReadLine();
+        }
+
+        static NotifyIcon notifyIcon;
+        static IntPtr processHandle;
+        static IntPtr WinShell;
+        static IntPtr WinDesktop;
+        static MenuItem HideMenu;
+        static MenuItem RestoreMenu;
+
+        private static void TraySystem()
+        {
+            notifyIcon = new NotifyIcon();
+            notifyIcon.Icon = new Icon("alien.ico");
+            notifyIcon.Text = "Alienware FX";
+            notifyIcon.Visible = true;
+
+            ContextMenu menu = new ContextMenu();
+            HideMenu = new MenuItem("Hide", new EventHandler(Minimize_Click));
+            RestoreMenu = new MenuItem("Restore", new EventHandler(Maximize_Click));
+
+            menu.MenuItems.Add(RestoreMenu);
+            menu.MenuItems.Add(HideMenu);
+            menu.MenuItems.Add(new MenuItem("Exit", new EventHandler(CleanExit)));
+
+            notifyIcon.ContextMenu = menu;
+
+            Task.Factory.StartNew(Run);
+
+            processHandle = Process.GetCurrentProcess().MainWindowHandle;
+
+            WinShell = GetShellWindow();
+
+            WinDesktop = GetDesktopWindow();
+
+            ResizeWindow(false);
+
+            Application.Run();
+        }
+
+        private static void Run()
+        {
             try
             {
                 RandomColores();
@@ -23,38 +78,72 @@ namespace AlienColors
             }
             finally
             {
-                
+
             }
-            Console.ReadLine();
+        }
+
+        private static void CleanExit(object sender, EventArgs e)
+        {
+            LightFX.LFX_Release();
+            notifyIcon.Visible = false;
+            Application.Exit();
+            Environment.Exit(1);
+        }
+
+
+        static void Minimize_Click(object sender, EventArgs e)
+        {
+            ResizeWindow(false);
+        }
+
+
+        static void Maximize_Click(object sender, EventArgs e)
+        {
+            ResizeWindow();
+        }
+
+        static void ResizeWindow(bool Restore = true)
+        {
+            if (Restore)
+            {
+                RestoreMenu.Enabled = false;
+                HideMenu.Enabled = true;
+                SetParent(processHandle, WinDesktop);
+            }
+            else
+            {
+                RestoreMenu.Enabled = true;
+                HideMenu.Enabled = false;
+                SetParent(processHandle, WinShell);
+            }
         }
 
         private static async void RandomColores()
         {
+            LightFX = new LightFXController();
+            var result = LightFX.LFX_Initialize();
+            if (result != LFX_Result.LFX_Success)
+            {
+                switch (result)
+                {
+                    case LFX_Result.LFX_Error_NoDevs:
+                        Console.WriteLine("There is not AlienFX device available.");
+                        break;
+                    default:
+                        Console.WriteLine("There was an error initializing the AlienFX device.");
+                        break;
+                }
+                return;
+            }
             while (true)
             {
                 if (Current == null)
                     Current = ColorPallete.RandomColor();
                 var random = ColorPallete.RandomColor();
-                var lightFX = new LightFXController();
-                var result = lightFX.LFX_Initialize();
-                if (result != LFX_Result.LFX_Success)
-                {
-                    switch (result)
-                    {
-                        case LFX_Result.LFX_Error_NoDevs:
-                            Console.WriteLine("There is not AlienFX device available.");
-                            break;
-                        default:
-                            Console.WriteLine("There was an error initializing the AlienFX device.");
-                            break;
-                    }
-                    return;
-                }
                 await Fade(Current, random, (rgb) =>
                 {
-                    SetColor(rgb, lightFX);
+                    SetColor(rgb, LightFX);
                 });
-                lightFX.LFX_Release();
                 Current = random;
             }
         }
@@ -143,20 +232,6 @@ namespace AlienColors
         }
 
         private static RGB Current { get; set; }
-
-        private static void useLFXLights(LightFXController lightFX)
-		{
-            /*
-			lightFX.LFX_Reset();
-			for (int i = 0; i <= 999; i++)
-			{
-				lightFX.LFX_Light(LFX_Position.LFX_All, new LFX_ColorStruct());
-				Console.Clear();
-				Console.Write("Iteration: " + i);
-				lightFX.LFX_Update();
-				Thread.Sleep(1000);
-			}
-            */
-		}
-	}
+        public static LightFXController LightFX { get; private set; }
+    }
 }
